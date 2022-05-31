@@ -94,6 +94,23 @@ public class MessageProcessor implements IHttpListener {
 
                 //Save any changes made to the request.
                 messageInfo.setRequest(request);
+            }else{ /* Response */
+
+                // Set variable state in response
+                StringBuilder sb = new StringBuilder("X-Stepper-Variables: ");
+                HashMap<StepSequence, List<StepVariable>> allVariables = sequenceManager.getRollingVariablesFromAllSequences();
+                for (Map.Entry<StepSequence, List<StepVariable>> sequenceEntry : allVariables.entrySet()) {
+                    List<StepVariable> variables = sequenceEntry.getValue();
+                    for (StepVariable v: variables){
+                        sb.append(v.getIdentifier());
+                        sb.append("=");
+                        sb.append(Stepper.callbacks.getHelpers().base64Encode(v.getValue().getBytes()).replace("=",""));
+                        sb.append("; ");
+                    }
+                }
+                byte[] response = messageInfo.getResponse();
+                byte[] newResponse = addHeaderToResponse(response, sb.toString());
+                messageInfo.setResponse(newResponse);
             }
         }
     }
@@ -232,6 +249,16 @@ public class MessageProcessor implements IHttpListener {
 
         byte[] messageBody = Arrays.copyOfRange(request, requestInfo.getBodyOffset(), request.length);
 
+        return Stepper.callbacks.getHelpers().buildHttpMessage(headers, messageBody);
+    }
+
+    public static byte[] addHeaderToResponse(byte[] response, String header){
+        IResponseInfo responseInfo = Stepper.callbacks.getHelpers().analyzeResponse(response);
+        List<String> headers = responseInfo.getHeaders();
+        headers.add(header);
+
+        byte[] messageBody = Arrays.copyOfRange(response, responseInfo.getBodyOffset(), response.length);
+        
         return Stepper.callbacks.getHelpers().buildHttpMessage(headers, messageBody);
     }
 
